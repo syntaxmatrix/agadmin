@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Search, Trash2 } from "lucide-react";
+import { Download, Search, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapUsers } from "@/lib/admin";
 import type { AdminUser, SubscriptionPlan } from "@/lib/types";
@@ -21,22 +21,41 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 export function UsersTable() {
   const { toast } = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
+
+  useEffect(() => {
     async function fetchUsers() {
+      setLoading(true);
       try {
-        const response = await api.get("/users");
+        const response = await api.get("/users", {
+          params: {
+            page,
+            limit: PAGE_SIZE,
+            ...(debouncedSearch ? { q: debouncedSearch } : {})
+          }
+        });
         const normalized = unwrapUsers(response.data);
         setUsers(normalized.users);
+        setTotalUsers(normalized.total);
       } catch (error) {
         toast({
           title: "Could not load users",
@@ -48,34 +67,13 @@ export function UsersTable() {
     }
 
     void fetchUsers();
-  }, [toast]);
+  }, [debouncedSearch, page, toast]);
 
-  const filteredUsers = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) {
-      return users;
-    }
-
-    return users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term) ||
-        user.subscription.toLowerCase().includes(term)
-    );
-  }, [search, users]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const paginatedUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
-
-  useEffect(() => {
-    if (page > pageCount) {
-      setPage(pageCount);
-    }
-  }, [page, pageCount]);
+  }, [debouncedSearch]);
 
   async function handleDelete(user: AdminUser) {
     if (!window.confirm(`Delete ${user.email}? This action cannot be undone.`)) {
@@ -84,7 +82,12 @@ export function UsersTable() {
 
     try {
       await api.delete(`/users/${user.id}`);
-      setUsers((current) => current.filter((item) => item.id !== user.id));
+      const nextPage = users.length === 1 && page > 1 ? page - 1 : page;
+      setPage(nextPage);
+      if (nextPage === page) {
+        setUsers((current) => current.filter((item) => item.id !== user.id));
+        setTotalUsers((current) => Math.max(current - 1, 0));
+      }
       toast({ title: "User deleted", description: `${user.email} has been removed.` });
     } catch (error) {
       toast({
@@ -119,19 +122,49 @@ export function UsersTable() {
     }
   }
 
+  async function handleCsvDownload() {
+    setDownloadingCsv(true);
+
+    try {
+      const response = await api.get("/users/emails/csv", {
+        responseType: "blob"
+      });
+      const blob = new Blob([response.data], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "users-emails.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "CSV export failed",
+        description: error instanceof Error ? error.message : "Could not download user emails."
+      });
+    } finally {
+      setDownloadingCsv(false);
+    }
+  }
+
   return (
     <>
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>User management</CardTitle>
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="pl-9"
-              placeholder="Search name, email, or plan"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex w-full flex-col gap-3 sm:max-w-xl sm:flex-row sm:items-center sm:justify-end">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9"
+                placeholder="Search name or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" className="gap-2" onClick={handleCsvDownload} disabled={downloadingCsv}>
+              <Download className="h-4 w-4" />
+              {downloadingCsv ? "Downloading..." : "Download CSV"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -153,8 +186,8 @@ export function UsersTable() {
                     Loading users...
                   </TableCell>
                 </TableRow>
-              ) : paginatedUsers.length ? (
-                paginatedUsers.map((user) => (
+              ) : users.length ? (
+                users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -187,8 +220,8 @@ export function UsersTable() {
 
           <div className="flex items-center justify-between">
             <p className="text-sm text-slate-500">
-              {filteredUsers.length
-                ? `Showing ${(page - 1) * PAGE_SIZE + 1}-${Math.min(page * PAGE_SIZE, filteredUsers.length)} of ${filteredUsers.length}`
+              {totalUsers
+                ? `Showing ${(page - 1) * PAGE_SIZE + 1}-${Math.min(page * PAGE_SIZE, totalUsers)} of ${totalUsers}`
                 : "Showing 0 results"}
             </p>
             <div className="flex gap-2">
