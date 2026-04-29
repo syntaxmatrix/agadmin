@@ -4,6 +4,7 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  isVerified: boolean;
   subscription: SubscriptionPlan;
   expiry: string | null;
   createdAt: string;

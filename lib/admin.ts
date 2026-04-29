@@ -11,6 +11,7 @@ type BackendAdminUser = {
   _id: string;
   name?: string;
   email: string;
+  isVerified?: boolean;
   subscription: AdminUser["subscription"];
   subscriptionExpiry?: string | null;
   createdAt: string;
@@ -55,6 +56,7 @@ export function unwrapUsers(
       id: user._id,
       name: user.name ?? "Unknown",
       email: user.email,
+      isVerified: Boolean(user.isVerified),
       subscription: user.subscription,
       expiry: user.subscriptionExpiry ?? null,
       createdAt: user.createdAt

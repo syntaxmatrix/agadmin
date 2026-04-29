@@ -6,6 +6,7 @@ import { Download, Search, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapUsers } from "@/lib/admin";
 import type { AdminUser, SubscriptionPlan } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 import { SubscriptionModal } from "@/components/dashboard/subscription-modal";
 import { SubscriptionBadge } from "@/components/dashboard/subscription-badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,15 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 
 const PAGE_SIZE = 10;
+const IST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true
+});
 
 export function UsersTable() {
   const { toast } = useToast();
@@ -173,6 +183,7 @@ export function UsersTable() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Verified</TableHead>
                 <TableHead>Subscription</TableHead>
                 <TableHead>Expiry</TableHead>
                 <TableHead>Created At</TableHead>
@@ -182,7 +193,7 @@ export function UsersTable() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-slate-500">
+                  <TableCell colSpan={7} className="py-10 text-center text-slate-500">
                     Loading users...
                   </TableCell>
                 </TableRow>
@@ -192,10 +203,15 @@ export function UsersTable() {
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
+                      <Badge className={user.isVerified ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
+                        {user.isVerified ? "True" : "False"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       <SubscriptionBadge plan={user.subscription} />
                     </TableCell>
                     <TableCell>{user.expiry ? format(new Date(user.expiry), "MMM d, yyyy") : "N/A"}</TableCell>
-                    <TableCell>{format(new Date(user.createdAt), "MMM d, yyyy")}</TableCell>
+                    <TableCell>{IST_DATE_TIME_FORMATTER.format(new Date(user.createdAt))}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => setSelectedUser(user)}>
@@ -210,7 +226,7 @@ export function UsersTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-slate-500">
+                  <TableCell colSpan={7} className="py-10 text-center text-slate-500">
                     No users matched your search.
                   </TableCell>
                 </TableRow>
