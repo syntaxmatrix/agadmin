@@ -84,7 +84,12 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        turnstileToken,
+        "cf-turnstile-response": turnstileToken
+      }),
       cache: "no-store"
     });
   } catch {
