@@ -26,7 +26,7 @@ export interface SessionUser {
 }
 
 export type EmailBodyType = "text" | "html";
-export type EmailSenderType = "support" | "updates";
+export type EmailSenderType = "support" | "updates" | "grievance";
 
 export interface InboxAttachment {
   id: string;

@@ -61,12 +61,13 @@ function pickUser(payload: BackendLoginResponse) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { email?: string; password?: string };
+  const body = (await request.json()) as { email?: string; password?: string; turnstileToken?: string };
   const email = body.email?.trim().toLowerCase();
   const password = body.password?.trim();
+  const turnstileToken = body.turnstileToken?.trim();
 
-  if (!email || !password) {
-    return NextResponse.json({ message: "Email and password are required." }, { status: 400 });
+  if (!email || !password || !turnstileToken) {
+    return NextResponse.json({ message: "Email, password, and Turnstile verification are required." }, { status: 400 });
   }
 
   const apiBaseUrl = API_BASE_URL;

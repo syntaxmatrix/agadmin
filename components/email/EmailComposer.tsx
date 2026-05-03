@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Eye, Send } from "lucide-react";
-import { emailSupport, emailUpdates } from "@/constant";
+import { emailGrievance, emailSupport, emailUpdates } from "@/constant";
 import { sendAdminEmail } from "@/lib/email";
 import type { EmailBodyType, EmailSenderType } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,12 @@ const senderModes: Array<{ value: EmailSenderType; label: string; email: string;
     label: "Updates",
     email: emailUpdates,
     hint: "Use for product news, releases, and broadcast announcements."
+  },
+  {
+    value: "grievance",
+    label: "Grievance",
+    email: emailGrievance,
+    hint: "Use for escalations, complaints, and grievance-handling communication."
   }
 ];
 
