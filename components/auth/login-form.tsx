@@ -72,7 +72,10 @@ export function LoginForm() {
         body: JSON.stringify({ email, password, turnstileToken })
       });
 
-      const payload = await response.json();
+      const contentType = response.headers.get("content-type") ?? "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : { message: "The login service returned an unexpected response. Please try again." };
 
       if (!response.ok) {
         throw new Error(payload.message ?? "Unable to sign in.");
@@ -119,7 +122,7 @@ export function LoginForm() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@syntx.in"
+                placeholder="Enter your admin email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

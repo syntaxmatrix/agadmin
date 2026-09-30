@@ -61,25 +61,39 @@ function pickUser(payload: BackendLoginResponse) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { email?: string; password?: string; turnstileToken?: string };
+  let body: { email?: string; password?: string; turnstileToken?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ message: "Request body must be valid JSON." }, { status: 400 });
+  }
+
   const email = body.email?.trim().toLowerCase();
-  const password = body.password?.trim();
+  const password = body.password;
   const turnstileToken = body.turnstileToken?.trim();
 
   if (!email || !password || !turnstileToken) {
     return NextResponse.json({ message: "Email, password, and Turnstile verification are required." }, { status: 400 });
   }
 
-  const apiBaseUrl = API_BASE_URL;
+  const apiBaseUrl = process.env.BACKEND_API_BASE_URL || API_BASE_URL;
   const loginPath = process.env.BACKEND_LOGIN_PATH || "/api/v1/user/login";
 
   if (!apiBaseUrl) {
-    return NextResponse.json({ message: "NEXT_PUBLIC_API_BASE_URL is not configured." }, { status: 500 });
+    return NextResponse.json({ message: "Backend API base URL is not configured." }, { status: 500 });
+  }
+
+  let backendUrl: URL;
+  try {
+    backendUrl = new URL(loginPath, apiBaseUrl);
+  } catch {
+    console.error("[auth/login] Invalid backend URL configuration.");
+    return NextResponse.json({ message: "Backend login is not configured correctly." }, { status: 500 });
   }
 
   let backendResponse: Response;
   try {
-    backendResponse = await fetch(new URL(loginPath, apiBaseUrl).toString(), {
+    backendResponse = await fetch(backendUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -92,15 +106,43 @@ export async function POST(request: Request) {
       }),
       cache: "no-store"
     });
-  } catch {
+  } catch (error) {
+    console.error("[auth/login] Backend fetch failed.", {
+      target: `${backendUrl.origin}${backendUrl.pathname}`,
+      method: "POST",
+      error: error instanceof Error ? error.message : "Unknown fetch error"
+    });
     return NextResponse.json({ message: "Could not reach the backend login service." }, { status: 502 });
+  }
+
+  const contentType = backendResponse.headers.get("content-type") ?? "";
+  console.info("[auth/login] Backend responded.", {
+    target: `${backendUrl.origin}${backendUrl.pathname}`,
+    method: "POST",
+    status: backendResponse.status,
+    contentType
+  });
+
+  let responseText: string;
+  try {
+    responseText = await backendResponse.text();
+  } catch {
+    console.error("[auth/login] Could not read backend response body.");
+    return NextResponse.json({ message: "Backend login returned an unreadable response." }, { status: 502 });
   }
 
   let payload: BackendLoginResponse;
   try {
-    payload = (await backendResponse.json()) as BackendLoginResponse;
+    payload = JSON.parse(responseText) as BackendLoginResponse;
   } catch {
-    return NextResponse.json({ message: "Backend login returned an invalid response." }, { status: 502 });
+    console.error("[auth/login] Backend response was not valid JSON.", {
+      status: backendResponse.status,
+      contentType
+    });
+    return NextResponse.json(
+      { message: backendResponse.ok ? "Backend login returned an invalid response." : "Backend login service returned an error." },
+      { status: backendResponse.ok ? 502 : backendResponse.status }
+    );
   }
 
   if (!backendResponse.ok) {
